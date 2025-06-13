@@ -105,78 +105,117 @@ class CameraApp:
         return default_config
     
     def detect_cameras(self):
-        """Detect available cameras (both USB and Pi Camera)"""
-        available_cameras = []
+        """Detect available cameras"""
         print("Detecting cameras...")
         
-        # Check for Pi Camera
-        try:
-            picam = PiCamera()
-            available_cameras.append("picam")
-            print("Raspberry Pi Camera Module: Available")
-            picam.close()
-        except Exception as e:
-            print("Raspberry Pi Camera Module: Not available")
-        
-        # Check for USB cameras
+        # Try to detect USB cameras
+        usb_cameras = []
         for i in range(10):  # Check first 10 indices
-            cap = cv2.VideoCapture(i)
-            if cap.isOpened():
-                ret, frame = cap.read()
-                if ret:
-                    available_cameras.append(f"usb_{i}")
-                    print(f"USB Camera {i}: Available")
-                cap.release()
-            else:
-                break
-                
-        return available_cameras
-    
-    def initialize_camera(self, camera_type=None):
-        """Initialize either USB camera or Pi Camera"""
-        if camera_type is None:
-            camera_type = self.config["camera"]["preferred_type"]
-        
-        # Clean up existing camera
-        self.cleanup_camera()
-        
-        if camera_type == "picam" or (camera_type == "auto" and "picam" in self.detect_cameras()):
             try:
-                self.picam = PiCamera()
-                self.picam.resolution = (self.config["camera"]["width"], self.config["camera"]["height"])
-                self.picam.framerate = self.config["camera"]["fps"]
-                self.raw_capture = PiRGBArray(self.picam, size=(self.config["camera"]["width"], self.config["camera"]["height"]))
-                self.camera_type = "picam"
-                print("Initialized Raspberry Pi Camera Module")
-                return True
+                cap = cv2.VideoCapture(i)
+                if cap.isOpened():
+                    ret, _ = cap.read()
+                    if ret:
+                        usb_cameras.append(i)
+                        print(f"Found USB camera at index {i}")
+                    cap.release()
             except Exception as e:
-                print(f"Error initializing Pi Camera: {e}")
+                print(f"Error checking camera index {i}: {e}")
+                continue
+        
+        # Try to detect Pi Camera
+        try:
+            # Add a small delay before checking Pi Camera
+            time.sleep(1)
+            picam = PiCamera()
+            # Add a small delay after initialization
+            time.sleep(1)
+            picam.close()
+            # Add a small delay after closing
+            time.sleep(1)
+            print("Found Raspberry Pi Camera")
+            return usb_cameras, True
+        except Exception as e:
+            print(f"Raspberry Pi Camera not found: {e}")
+            return usb_cameras, False
+
+    def initialize_camera(self):
+        """Initialize the camera based on configuration"""
+        print("Initializing camera...")
+        
+        # Detect available cameras
+        usb_cameras, has_picam = self.detect_cameras()
+        
+        # Determine which camera to use
+        if self.config["camera"]["preferred_type"] == "auto":
+            if has_picam:
+                print("Using Raspberry Pi Camera")
+                return self.initialize_picamera()
+            elif usb_cameras:
+                print(f"Using USB camera at index {usb_cameras[0]}")
+                return self.initialize_usb_camera(usb_cameras[0])
+            else:
+                print("No cameras found!")
                 return False
+        elif self.config["camera"]["preferred_type"] == "picam" and has_picam:
+            print("Using Raspberry Pi Camera")
+            return self.initialize_picamera()
+        elif self.config["camera"]["preferred_type"] == "usb" and usb_cameras:
+            print(f"Using USB camera at index {usb_cameras[0]}")
+            return self.initialize_usb_camera(usb_cameras[0])
         else:
-            # Try USB camera
-            cameras = self.detect_cameras()
-            usb_cameras = [cam for cam in cameras if cam.startswith("usb_")]
+            print("Preferred camera type not available!")
+            return False
+
+    def initialize_usb_camera(self, index):
+        """Initialize USB camera"""
+        try:
+            self.cap = cv2.VideoCapture(index)
+            if not self.cap.isOpened():
+                print(f"Failed to open USB camera at index {index}")
+                return False
+                
+            # Set camera properties
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.config["camera"]["width"])
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config["camera"]["height"])
+            self.cap.set(cv2.CAP_PROP_FPS, self.config["camera"]["fps"])
             
-            if usb_cameras:
-                camera_index = int(usb_cameras[0].split("_")[1])
-                self.cap = cv2.VideoCapture(camera_index)
-                
-                if not self.cap.isOpened():
-                    print(f"Error: Cannot access USB camera {camera_index}")
-                    return False
-                
-                # Set camera properties
-                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.config["camera"]["width"])
-                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config["camera"]["height"])
-                self.cap.set(cv2.CAP_PROP_FPS, self.config["camera"]["fps"])
-                
-                self.frame_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                self.frame_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                self.camera_type = "usb"
-                print(f"Initialized USB camera: {self.frame_width}x{self.frame_height}")
-                return True
+            # Verify settings
+            actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
             
-            print("No cameras available")
+            print(f"Camera initialized with resolution: {actual_width}x{actual_height} at {actual_fps} FPS")
+            
+            self.camera_type = 'usb'
+            return True
+            
+        except Exception as e:
+            print(f"Error initializing USB camera: {e}")
+            return False
+
+    def initialize_picamera(self):
+        """Initialize Raspberry Pi Camera"""
+        try:
+            # Add a small delay before initialization
+            time.sleep(1)
+            self.picam = PiCamera()
+            # Add a small delay after creating camera object
+            time.sleep(1)
+            self.picam.resolution = (self.config["camera"]["width"], self.config["camera"]["height"])
+            self.picam.framerate = self.config["camera"]["fps"]
+            self.raw_capture = PiRGBArray(self.picam, size=(self.config["camera"]["width"], self.config["camera"]["height"]))
+            
+            print(f"Pi Camera initialized with resolution: {self.config['camera']['width']}x{self.config['camera']['height']} at {self.config['camera']['fps']} FPS")
+            
+            self.camera_type = 'picam'
+            return True
+            
+        except Exception as e:
+            print(f"Error initializing Pi Camera: {e}")
+            if self.picam is not None:
+                self.picam.close()
+                self.picam = None
             return False
     
     def get_frame(self):
@@ -193,16 +232,23 @@ class CameraApp:
     
     def cleanup_camera(self):
         """Clean up camera resources"""
-        if self.cap:
-            self.cap.release()
-            self.cap = None
-        if self.picam:
-            self.picam.close()
-            self.picam = None
-        if self.raw_capture:
-            self.raw_capture = None
-        self.camera_type = None
-    
+        print("Cleaning up camera resources...")
+        try:
+            if self.camera_type == 'usb' and self.cap is not None:
+                self.cap.release()
+                self.cap = None
+            elif self.camera_type == 'picam':
+                if self.picam is not None:
+                    self.picam.close()
+                    self.picam = None
+                if self.raw_capture is not None:
+                    self.raw_capture.close()
+                    self.raw_capture = None
+            # Add a small delay to ensure resources are released
+            time.sleep(1)
+        except Exception as e:
+            print(f"Error during camera cleanup: {e}")
+
     def check_disk_space(self, path=".", min_gb=1):
         """Check available disk space"""
         try:
@@ -213,24 +259,29 @@ class CameraApp:
             return True, 0  # Assume OK if can't check
     
     def save_image(self, frame):
-        """Save current frame as image with timestamp"""
-        # Check disk space
-        space_ok, free_gb = self.check_disk_space()
-        if not space_ok:
-            print(f"Warning: Low disk space ({free_gb:.1f} GB)")
+        """Save current frame as image"""
+        try:
+            # Get the original frame without any overlays
+            if self.camera_type == 'picam':
+                # For Pi Camera, we need to get a fresh frame
+                self.raw_capture.truncate(0)
+                self.picam.capture(self.raw_capture, format="bgr")
+                original_frame = self.raw_capture.array.copy()
+            else:
+                # For USB camera, use the current frame
+                original_frame = frame.copy()
             
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{self.config['save_paths']['images']}/Image{timestamp}.jpg"
-        
-        # Save with high quality
-        encode_params = [cv2.IMWRITE_JPEG_QUALITY, 95]
-        success = cv2.imwrite(filename, frame, encode_params)
-        
-        if success:
-            file_size = os.path.getsize(filename) / 1024  # KB
-            print(f"Image saved: {filename} ({file_size:.1f} KB)")
-        else:
-            print("Error saving image")
+            # Generate filename with timestamp
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"Image{timestamp}.jpg"
+            filepath = os.path.join(self.config["save_paths"]["images"], filename)
+            
+            # Save the original frame without overlays
+            cv2.imwrite(filepath, original_frame)
+            print(f"Image saved: {filepath}")
+            
+        except Exception as e:
+            print(f"Error saving image: {e}")
     
     def start_video_recording(self, frame):
         """Start video recording"""
@@ -356,10 +407,10 @@ class CameraApp:
         current_type = self.camera_type
         if current_type == "picam":
             # Try switching to USB camera
-            return self.initialize_camera("usb")
+            return self.initialize_camera()
         else:
             # Try switching to Pi Camera
-            return self.initialize_camera("picam")
+            return self.initialize_camera()
     
     def run(self):
         """Main application loop"""
@@ -430,6 +481,10 @@ class CameraApp:
         self.cleanup_camera()
         cv2.destroyAllWindows()
         print("Application closed")
+
+    def __del__(self):
+        """Destructor to ensure proper cleanup"""
+        self.cleanup_camera()
 
 def main():
     app = CameraApp()
