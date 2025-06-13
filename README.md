@@ -43,7 +43,6 @@ This repository contains separate applications for different camera types to avo
 - **`camera_launcher.py`** - Main launcher that detects available cameras and starts the appropriate application
 - **`camera_app_pi.py`** - Dedicated application for Raspberry Pi Camera Module
 - **`camera_app_usb.py`** - Dedicated application for USB cameras
-- **`camera_app.py`** - Original unified application (may have compatibility issues)
 
 ## Manual Installation
 
