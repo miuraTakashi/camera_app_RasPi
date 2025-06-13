@@ -111,69 +111,74 @@ class CameraApp:
         """カメラの検出を行う"""
         print("Starting camera detection...")
         
-        # USBカメラの検出
-        print("Checking USB cameras...")
-        for i in range(10):  # 最大10個のカメラをチェック
-            cap = cv2.VideoCapture(i)
-            if cap.isOpened():
-                ret, _ = cap.read()
-                if ret:
-                    print(f"USB camera found at index {i}")
-                    self.usb_camera_index = i
-                    cap.release()
-                    break
-                cap.release()
-        
-        # Raspberry Pi Cameraの検出
+        # まずRaspberry Pi Cameraをチェック（より高速）
         print("Checking Raspberry Pi Camera...")
         try:
             # 短いタイムアウトでカメラを初期化
             with picamera.PiCamera() as camera:
                 camera.resolution = (640, 480)
-                camera.framerate = 30
-                # 短い時間でテスト撮影
-                camera.start_preview()
-                time.sleep(0.1)  # 0.1秒待機
-                camera.stop_preview()
                 print("Raspberry Pi Camera detected")
                 self.pi_camera_available = True
         except Exception as e:
             print(f"Raspberry Pi Camera not available: {e}")
             self.pi_camera_available = False
         
-        # カメラの選択
+        # Pi Cameraが利用可能な場合は、それを優先して使用
         if self.pi_camera_available:
             print("Using Raspberry Pi Camera")
             self.camera_type = "pi"
-        elif self.usb_camera_index is not None:
-            print(f"Using USB camera (index: {self.usb_camera_index})")
-            self.camera_type = "usb"
-        else:
-            print("No cameras detected")
-            self.camera_type = None
+            return
+        
+        # Pi Cameraが利用できない場合のみUSBカメラをチェック
+        print("Checking USB cameras...")
+        for i in range(3):  # 最大3個のカメラをチェック（高速化）
+            print(f"  Checking USB camera index {i}...")
+            try:
+                cap = cv2.VideoCapture(i)
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                
+                if cap.isOpened():
+                    # タイムアウト付きでフレーム読み取りを試行
+                    ret, frame = cap.read()
+                    if ret and frame is not None:
+                        print(f"USB camera found at index {i}")
+                        self.usb_camera_index = i
+                        cap.release()
+                        self.camera_type = "usb"
+                        return
+                cap.release()
+            except Exception as e:
+                print(f"  Error checking camera {i}: {e}")
+                continue
+        
+        print("No cameras detected")
+        self.camera_type = None
 
     def initialize_camera(self):
         """カメラの初期化を行う"""
         if self.camera_type == "pi":
             try:
+                print("Initializing Raspberry Pi Camera...")
                 self.camera = picamera.PiCamera()
                 self.camera.resolution = (640, 480)
                 self.camera.framerate = 30
-                # 短い時間でテスト撮影
-                self.camera.start_preview()
-                time.sleep(0.1)
-                self.camera.stop_preview()
                 print("Raspberry Pi Camera initialized successfully")
             except Exception as e:
                 print(f"Failed to initialize Raspberry Pi Camera: {e}")
                 self.camera = None
         elif self.camera_type == "usb":
             try:
+                print(f"Initializing USB camera at index {self.usb_camera_index}...")
                 self.camera = cv2.VideoCapture(self.usb_camera_index)
                 if not self.camera.isOpened():
                     print("Failed to open USB camera")
                     self.camera = None
                 else:
+                    # カメラの設定
+                    self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                    self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                    self.camera.set(cv2.CAP_PROP_FPS, 30)
                     print("USB camera initialized successfully")
             except Exception as e:
                 print(f"Failed to initialize USB camera: {e}")
