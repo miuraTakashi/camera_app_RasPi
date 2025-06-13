@@ -32,7 +32,7 @@ setup_autostart() {
     local username=$1
     local autostart=$2
 
-    if [ "$autostart" = "y" ]; then
+    if [ "$autostart" = "y" ] || [ "$autostart" = "Y" ]; then
         print_message "Setting up automatic startup..." "$YELLOW"
         
         # systemdサービスの設定
@@ -54,9 +54,9 @@ WantedBy=multi-user.target
 EOL
 
         # サービスを有効化して開始
-        sudo systemctl daemon-reload
-        sudo systemctl enable camera-app
-        sudo systemctl start camera-app
+        sudo systemctl daemon-reload || error_exit "Failed to reload systemd"
+        sudo systemctl enable camera-app || error_exit "Failed to enable camera-app service"
+        sudo systemctl start camera-app || error_exit "Failed to start camera-app service"
         
         success_message "Automatic startup has been configured"
     else
@@ -85,8 +85,14 @@ username=$(whoami)
 print_message "Detected username: ${username}" "$GREEN"
 
 # 自動起動の設定を確認
-read -p "Do you want to set up automatic startup? (y/n): " autostart
-setup_autostart "$username" "$autostart"
+while true; do
+    read -p "Do you want to set up automatic startup? (y/n): " autostart
+    case $autostart in
+        [Yy]* ) setup_autostart "$username" "y"; break;;
+        [Nn]* ) setup_autostart "$username" "n"; break;;
+        * ) print_message "Please answer y or n." "$RED";;
+    esac
+done
 
 # ビデオグループへのユーザー追加
 print_message "Adding user to video group..." "$YELLOW"
@@ -98,7 +104,7 @@ success_message "Installation completed successfully!"
 print_message "\nTo start the application manually:" "$YELLOW"
 echo "python3 camera_app.py"
 
-if [ "$autostart" = "y" ]; then
+if [ "$autostart" = "y" ] || [ "$autostart" = "Y" ]; then
     print_message "\nThe application will start automatically after reboot." "$GREEN"
     print_message "To check the status of the service:" "$YELLOW"
     echo "sudo systemctl status camera-app"
