@@ -325,58 +325,27 @@ class CameraApp:
     
     def draw_overlay_info(self, frame):
         """Draw overlay information on frame"""
-        if not self.config["display"]["show_status"]:
-            return
-            
-        overlay_color = (255, 255, 255)  # White
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.6
-        thickness = 2
+        # Get frame dimensions
+        height, width = frame.shape[:2]
         
-        # Background for text
-        overlay = frame.copy()
+        # Calculate text position (bottom left with padding)
+        padding = 10
+        y_position = height - padding
         
-        y_offset = 30
-        
-        # FPS display
-        if self.config["display"]["show_fps"]:
-            fps_text = f"FPS: {self.current_fps}"
-            cv2.putText(frame, fps_text, (10, y_offset), font, font_scale, overlay_color, thickness)
-            y_offset += 30
-        
-        # Timestamp
-        if self.config["display"]["show_timestamp"]:
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            cv2.putText(frame, timestamp, (10, y_offset), font, font_scale, overlay_color, thickness)
-            y_offset += 30
-        
-        # Recording status
-        if self.is_recording:
-            # Recording indicator - red circle
-            center_x = self.frame_width - 30
-            center_y = 30
-            radius = 10
-            color = (0, 0, 255)  # Red in BGR
-            
-            cv2.circle(frame, (center_x, center_y), radius, color, -1)
-            cv2.putText(frame, "REC", (center_x - 50, center_y + 5),
-                       font, font_scale, color, thickness)
-            
-            # Recording duration
-            duration = time.time() - self.recording_start_time
-            duration_text = f"Recording: {duration:.1f}s"
-            cv2.putText(frame, duration_text, (10, y_offset), font, font_scale, (0, 0, 255), thickness)
-        
-        # Controls help (bottom of screen)
-        help_y = self.frame_height - 80
-        help_texts = [
-            "SPACEBAR: Save Image | V: Record Video | T: Toggle Overlay",
-            "C: Switch Camera | ESC/Q: Quit"
+        # Draw controls information
+        controls = [
+            "SPACEBAR: save image",
+            "V: toggle video recording",
+            "Q: quit application"
         ]
         
-        for i, help_text in enumerate(help_texts):
-            cv2.putText(frame, help_text, (10, help_y + i * 25), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, overlay_color, 1)
+        # Draw each line from bottom to top
+        for control in reversed(controls):
+            cv2.putText(frame, control, (padding, y_position), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            y_position -= 30  # Move up for next line
+        
+        return frame
     
     def switch_camera(self):
         """Switch between USB and Pi Camera"""
