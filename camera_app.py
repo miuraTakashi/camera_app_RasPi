@@ -24,6 +24,7 @@ import psutil
 from picamera import PiCamera
 from picamera.array import PiRGBArray
 from pathlib import Path
+import picamera
 
 # Check Python version
 if sys.version_info[0] < 3:
@@ -44,6 +45,8 @@ class CameraApp:
         self.fps_start_time = time.time()
         self.current_fps = 0
         self.camera_type = None  # 'usb' or 'picam'
+        self.usb_camera_index = None
+        self.pi_camera_available = False
         
         # Get user's home directory
         self.home_dir = str(Path.home())
@@ -105,119 +108,80 @@ class CameraApp:
         return default_config
     
     def detect_cameras(self):
-        """Detect available cameras"""
-        print("Detecting cameras...")
+        """カメラの検出を行う"""
+        print("Starting camera detection...")
         
-        # Try to detect USB cameras
-        usb_cameras = []
-        for i in range(10):  # Check first 10 indices
-            try:
-                cap = cv2.VideoCapture(i)
-                if cap.isOpened():
-                    ret, _ = cap.read()
-                    if ret:
-                        usb_cameras.append(i)
-                        print(f"Found USB camera at index {i}")
+        # USBカメラの検出
+        print("Checking USB cameras...")
+        for i in range(10):  # 最大10個のカメラをチェック
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                ret, _ = cap.read()
+                if ret:
+                    print(f"USB camera found at index {i}")
+                    self.usb_camera_index = i
                     cap.release()
-            except Exception as e:
-                print(f"Error checking camera index {i}: {e}")
-                continue
+                    break
+                cap.release()
         
-        # Try to detect Pi Camera
+        # Raspberry Pi Cameraの検出
+        print("Checking Raspberry Pi Camera...")
         try:
-            # Add a small delay before checking Pi Camera
-            time.sleep(1)
-            picam = PiCamera()
-            # Add a small delay after initialization
-            time.sleep(1)
-            picam.close()
-            # Add a small delay after closing
-            time.sleep(1)
-            print("Found Raspberry Pi Camera")
-            return usb_cameras, True
+            # 短いタイムアウトでカメラを初期化
+            with picamera.PiCamera() as camera:
+                camera.resolution = (640, 480)
+                camera.framerate = 30
+                # 短い時間でテスト撮影
+                camera.start_preview()
+                time.sleep(0.1)  # 0.1秒待機
+                camera.stop_preview()
+                print("Raspberry Pi Camera detected")
+                self.pi_camera_available = True
         except Exception as e:
-            print(f"Raspberry Pi Camera not found: {e}")
-            return usb_cameras, False
+            print(f"Raspberry Pi Camera not available: {e}")
+            self.pi_camera_available = False
+        
+        # カメラの選択
+        if self.pi_camera_available:
+            print("Using Raspberry Pi Camera")
+            self.camera_type = "pi"
+        elif self.usb_camera_index is not None:
+            print(f"Using USB camera (index: {self.usb_camera_index})")
+            self.camera_type = "usb"
+        else:
+            print("No cameras detected")
+            self.camera_type = None
 
     def initialize_camera(self):
-        """Initialize the camera based on configuration"""
-        print("Initializing camera...")
-        
-        # Detect available cameras
-        usb_cameras, has_picam = self.detect_cameras()
-        
-        # Determine which camera to use
-        if self.config["camera"]["preferred_type"] == "auto":
-            if has_picam:
-                print("Using Raspberry Pi Camera")
-                return self.initialize_picamera()
-            elif usb_cameras:
-                print(f"Using USB camera at index {usb_cameras[0]}")
-                return self.initialize_usb_camera(usb_cameras[0])
-            else:
-                print("No cameras found!")
-                return False
-        elif self.config["camera"]["preferred_type"] == "picam" and has_picam:
-            print("Using Raspberry Pi Camera")
-            return self.initialize_picamera()
-        elif self.config["camera"]["preferred_type"] == "usb" and usb_cameras:
-            print(f"Using USB camera at index {usb_cameras[0]}")
-            return self.initialize_usb_camera(usb_cameras[0])
+        """カメラの初期化を行う"""
+        if self.camera_type == "pi":
+            try:
+                self.camera = picamera.PiCamera()
+                self.camera.resolution = (640, 480)
+                self.camera.framerate = 30
+                # 短い時間でテスト撮影
+                self.camera.start_preview()
+                time.sleep(0.1)
+                self.camera.stop_preview()
+                print("Raspberry Pi Camera initialized successfully")
+            except Exception as e:
+                print(f"Failed to initialize Raspberry Pi Camera: {e}")
+                self.camera = None
+        elif self.camera_type == "usb":
+            try:
+                self.camera = cv2.VideoCapture(self.usb_camera_index)
+                if not self.camera.isOpened():
+                    print("Failed to open USB camera")
+                    self.camera = None
+                else:
+                    print("USB camera initialized successfully")
+            except Exception as e:
+                print(f"Failed to initialize USB camera: {e}")
+                self.camera = None
         else:
-            print("Preferred camera type not available!")
-            return False
+            print("No camera available")
+            self.camera = None
 
-    def initialize_usb_camera(self, index):
-        """Initialize USB camera"""
-        try:
-            self.cap = cv2.VideoCapture(index)
-            if not self.cap.isOpened():
-                print(f"Failed to open USB camera at index {index}")
-                return False
-                
-            # Set camera properties
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.config["camera"]["width"])
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config["camera"]["height"])
-            self.cap.set(cv2.CAP_PROP_FPS, self.config["camera"]["fps"])
-            
-            # Verify settings
-            actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-            actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-            actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
-            
-            print(f"Camera initialized with resolution: {actual_width}x{actual_height} at {actual_fps} FPS")
-            
-            self.camera_type = 'usb'
-            return True
-            
-        except Exception as e:
-            print(f"Error initializing USB camera: {e}")
-            return False
-
-    def initialize_picamera(self):
-        """Initialize Raspberry Pi Camera"""
-        try:
-            # Add a small delay before initialization
-            time.sleep(1)
-            self.picam = PiCamera()
-            # Add a small delay after creating camera object
-            time.sleep(1)
-            self.picam.resolution = (self.config["camera"]["width"], self.config["camera"]["height"])
-            self.picam.framerate = self.config["camera"]["fps"]
-            self.raw_capture = PiRGBArray(self.picam, size=(self.config["camera"]["width"], self.config["camera"]["height"]))
-            
-            print(f"Pi Camera initialized with resolution: {self.config['camera']['width']}x{self.config['camera']['height']} at {self.config['camera']['fps']} FPS")
-            
-            self.camera_type = 'picam'
-            return True
-            
-        except Exception as e:
-            print(f"Error initializing Pi Camera: {e}")
-            if self.picam is not None:
-                self.picam.close()
-                self.picam = None
-            return False
-    
     def get_frame(self):
         """Get frame from either USB camera or Pi Camera"""
         if self.camera_type == "picam":
@@ -413,74 +377,66 @@ class CameraApp:
             return self.initialize_camera()
     
     def run(self):
-        """Main application loop"""
-        if not self.initialize_camera():
-            return
-        
-        # Create full screen window
-        cv2.namedWindow("Camera", cv2.WINDOW_NORMAL)
-        cv2.setWindowProperty("Camera", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-        
-        print("Camera Application Started")
-        print("Controls:")
-        print("  SPACEBAR - Save image")
-        print("  V - Start/Stop video recording")
-        print("  T - Toggle overlay display")
-        print("  C - Switch camera")
-        print("  ESC or Q - Quit")
-        
+        """メインループ"""
         try:
+            self.detect_cameras()
+            if self.camera_type is None:
+                print("No camera available. Exiting...")
+                return
+            
+            self.initialize_camera()
+            if self.camera is None:
+                print("Failed to initialize camera. Exiting...")
+                return
+            
+            print("Camera application started")
+            print("Press 'q' to quit, SPACEBAR to save image, 'v' to start/stop video recording")
+            
             while True:
-                frame = self.get_frame()
+                if self.camera_type == "pi":
+                    frame = self.get_frame()
+                else:
+                    frame = self.get_frame()
+                
                 if frame is None:
-                    print("Error: Failed to capture frame")
+                    print("Failed to capture frame")
                     break
                 
-                # Update FPS counter
-                self.update_fps()
-                
-                # Draw overlay information
+                # テキストオーバーレイの追加
                 self.draw_overlay_info(frame)
                 
-                # Write frame to video if recording (for USB camera)
-                if self.is_recording and self.camera_type == "usb" and self.video_writer:
-                    self.video_writer.write(frame)
+                # フレームの表示
+                cv2.imshow('Camera', frame)
                 
-                # Display frame
-                cv2.imshow("Camera", frame)
-                
-                # Handle keyboard input
+                # キー入力の処理
                 key = cv2.waitKey(1) & 0xFF
-                
-                if key == ord(' '):  # Spacebar - save image
+                if key == ord('q'):
+                    print("Quitting...")
+                    break
+                elif key == ord(' '):
                     self.save_image(frame)
-                elif key == ord('v') or key == ord('V'):  # V key - toggle recording
+                elif key == ord('v'):
                     if self.is_recording:
                         self.stop_video_recording()
                     else:
                         self.start_video_recording(frame)
-                elif key == ord('t') or key == ord('T'):  # T key - toggle overlay
-                    self.config["display"]["show_status"] = not self.config["display"]["show_status"]
-                    print(f"Overlay display: {'ON' if self.config['display']['show_status'] else 'OFF'}")
-                elif key == ord('c') or key == ord('C'):  # C key - switch camera
-                    self.switch_camera()
-                elif key == 27 or key == ord('q') or key == ord('Q'):  # ESC or Q - quit
-                    break
-                    
-        except KeyboardInterrupt:
-            print("\nApplication interrupted by user")
+        
+        except Exception as e:
+            print(f"Error in main loop: {e}")
         
         finally:
             self.cleanup()
+            print("Application terminated")
     
     def cleanup(self):
-        """Clean up resources"""
+        """リソースのクリーンアップ"""
+        print("Cleaning up resources...")
         if self.is_recording:
             self.stop_video_recording()
         
         self.cleanup_camera()
         cv2.destroyAllWindows()
-        print("Application closed")
+        print("Cleanup completed")
 
     def __del__(self):
         """Destructor to ensure proper cleanup"""
