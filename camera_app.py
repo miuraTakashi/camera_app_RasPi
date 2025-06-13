@@ -184,32 +184,46 @@ class CameraApp:
 
     def get_frame(self):
         """Get frame from either USB camera or Pi Camera"""
-        if self.camera_type == "picam":
-            self.raw_capture.truncate(0)
-            self.picam.capture(self.raw_capture, format="bgr")
-            frame = self.raw_capture.array
-        else:  # USB camera
-            ret, frame = self.cap.read()
-            if not ret:
+        if self.camera_type == "pi":
+            try:
+                if self.camera is not None:
+                    # For Pi Camera, we need to capture to array
+                    from picamera.array import PiRGBArray
+                    with PiRGBArray(self.camera) as output:
+                        self.camera.capture(output, format="bgr")
+                        frame = output.array
+                    return frame
+                else:
+                    return None
+            except Exception as e:
+                print(f"Error capturing from Pi Camera: {e}")
                 return None
-        return frame
+        else:  # USB camera
+            try:
+                if self.camera is not None:
+                    ret, frame = self.camera.read()
+                    if ret:
+                        return frame
+                    else:
+                        return None
+                else:
+                    return None
+            except Exception as e:
+                print(f"Error capturing from USB camera: {e}")
+                return None
     
     def cleanup_camera(self):
         """Clean up camera resources"""
         print("Cleaning up camera resources...")
         try:
-            if self.camera_type == 'usb' and self.cap is not None:
-                self.cap.release()
-                self.cap = None
-            elif self.camera_type == 'picam':
-                if self.picam is not None:
-                    self.picam.close()
-                    self.picam = None
-                if self.raw_capture is not None:
-                    self.raw_capture.close()
-                    self.raw_capture = None
+            if self.camera_type == 'usb' and self.camera is not None:
+                self.camera.release()
+                self.camera = None
+            elif self.camera_type == 'pi' and self.camera is not None:
+                self.camera.close()
+                self.camera = None
             # Add a small delay to ensure resources are released
-            time.sleep(1)
+            time.sleep(0.5)
         except Exception as e:
             print(f"Error during camera cleanup: {e}")
 
@@ -393,17 +407,16 @@ class CameraApp:
             print("Press 'q' to quit, SPACEBAR to save image, 'v' to start/stop video recording")
             
             while True:
-                if self.camera_type == "pi":
-                    frame = self.get_frame()
-                else:
-                    frame = self.get_frame()
+                # フレームを取得
+                frame = self.get_frame()
                 
                 if frame is None:
-                    print("Failed to capture frame")
-                    break
+                    print("Failed to capture frame - camera may be disconnected")
+                    time.sleep(0.1)  # 短い待機時間を追加
+                    continue
                 
                 # テキストオーバーレイの追加
-                self.draw_overlay_info(frame)
+                frame = self.draw_overlay_info(frame)
                 
                 # フレームの表示
                 cv2.imshow('Camera', frame)
