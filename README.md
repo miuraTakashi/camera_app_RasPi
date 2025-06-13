@@ -41,8 +41,8 @@ The application will start automatically after reboot (if auto-startup was selec
 This repository contains separate applications for different camera types to avoid compatibility issues:
 
 - **`camera_launcher.py`** - Main launcher that detects available cameras and starts the appropriate application
-- **`camera_app_pi.py`** - Dedicated application for Raspberry Pi Camera Module
-- **`camera_app_usb.py`** - Dedicated application for USB cameras
+- **`pi_camera_app.py`** - Dedicated application for Raspberry Pi Camera Module
+- **`usb_camera_app.py`** - Dedicated application for USB cameras
 
 ## Manual Installation
 
@@ -57,9 +57,9 @@ pip3 install -r camera_requirements.txt
 python3 camera_launcher.py
 
 # Or run specific applications directly:
-python3 camera_app_pi.py      # For Pi Camera Module
-python3 camera_app_usb.py     # For USB cameras
-python3 camera_app_usb.py 1   # For USB camera at index 1
+python3 pi_camera_app.py      # For Pi Camera Module
+python3 usb_camera_app.py     # For USB cameras
+python3 usb_camera_app.py 1   # For USB camera at index 1
 ```
 
 ## Camera Support

@@ -54,11 +54,11 @@ def main():
     # Auto-select if only one camera is available
     if pi_camera_available and not usb_camera_available:
         print("\nOnly Pi Camera detected. Starting Pi Camera application...")
-        subprocess.run([sys.executable, "camera_app_pi.py"])
+        subprocess.run([sys.executable, "pi_camera_app.py"])
         return
     elif usb_camera_available and not pi_camera_available:
         print(f"\nOnly USB Camera detected. Starting USB Camera application...")
-        subprocess.run([sys.executable, "camera_app_usb.py", str(usb_index)])
+        subprocess.run([sys.executable, "usb_camera_app.py", str(usb_index)])
         return
     
     # Both cameras available - let user choose
@@ -68,11 +68,11 @@ def main():
             choice = input("Select camera (1 for Pi Camera, 2 for USB Camera): ")
             if choice == "1":
                 print("Starting Pi Camera application...")
-                subprocess.run([sys.executable, "camera_app_pi.py"])
+                subprocess.run([sys.executable, "pi_camera_app.py"])
                 break
             elif choice == "2":
                 print("Starting USB Camera application...")
-                subprocess.run([sys.executable, "camera_app_usb.py", str(usb_index)])
+                subprocess.run([sys.executable, "usb_camera_app.py", str(usb_index)])
                 break
             else:
                 print("Invalid choice. Please enter 1 or 2.")
