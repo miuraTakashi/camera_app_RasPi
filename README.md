@@ -19,7 +19,7 @@ A full-featured camera application for Raspberry Pi that supports both USB camer
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/camera_app_RasPi.git
+git clone https://github.com/miuraTakashi/camera_app_RasPi.git
 cd camera_app_RasPi
 ```
 
@@ -34,7 +34,16 @@ chmod +x install.sh
 sudo reboot
 ```
 
-The application will start automatically after reboot.
+The application will start automatically after reboot (if auto-startup was selected during installation).
+
+## Application Files
+
+This repository contains separate applications for different camera types to avoid compatibility issues:
+
+- **`camera_launcher.py`** - Main launcher that detects available cameras and starts the appropriate application
+- **`camera_app_pi.py`** - Dedicated application for Raspberry Pi Camera Module
+- **`camera_app_usb.py`** - Dedicated application for USB cameras
+- **`camera_app.py`** - Original unified application (may have compatibility issues)
 
 ## Manual Installation
 
@@ -43,9 +52,15 @@ The application will start automatically after reboot.
 pip3 install -r camera_requirements.txt
 ```
 
-2. Run the application:
+2. Run the appropriate application:
 ```bash
-python3 camera_app.py
+# Use the launcher to auto-detect and select camera
+python3 camera_launcher.py
+
+# Or run specific applications directly:
+python3 camera_app_pi.py      # For Pi Camera Module
+python3 camera_app_usb.py     # For USB cameras
+python3 camera_app_usb.py 1   # For USB camera at index 1
 ```
 
 ## Camera Support
