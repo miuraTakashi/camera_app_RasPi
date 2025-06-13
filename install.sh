@@ -1,72 +1,109 @@
 #!/bin/bash
 
-# Check if running as root
-if [ "$EUID" -eq 0 ]; then 
-    echo "Please do not run as root"
+# 色の定義
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# 関数: 色付きのメッセージを表示
+print_message() {
+    echo -e "${2}${1}${NC}"
+}
+
+# 関数: エラーメッセージを表示して終了
+error_exit() {
+    print_message "$1" "$RED"
     exit 1
-fi
+}
 
-# Check Python version
-python3 --version >/dev/null 2>&1
-if [ $? -ne 0 ]; then
-    echo "Python 3 is not installed. Installing..."
-    sudo apt-get update
-    sudo apt-get install -y python3
-fi
+# 関数: 成功メッセージを表示
+success_message() {
+    print_message "$1" "$GREEN"
+}
 
-# Update system
-echo "Updating system..."
-sudo apt-get update
-sudo apt-get upgrade -y
+# 関数: 警告メッセージを表示
+warning_message() {
+    print_message "$1" "$YELLOW"
+}
 
-# Install required system packages
-echo "Installing required system packages..."
-sudo apt-get install -y python3-pip python3-opencv python3-dev python3-setuptools python3-wheel build-essential
+# 関数: 自動起動の設定
+setup_autostart() {
+    local username=$1
+    local autostart=$2
 
-# Install numpy first (it's a dependency for other packages)
-echo "Installing numpy..."
-python3 -m pip install --no-cache-dir numpy
-
-# Install other Python dependencies
-echo "Installing other Python dependencies..."
-python3 -m pip install --no-cache-dir -r camera_requirements.txt
-
-# Get current user
-CURRENT_USER=$(whoami)
-
-# Setup systemd service
-echo "Setting up automatic startup..."
-sudo tee /etc/systemd/system/camera-app.service << EOF
+    if [ "$autostart" = "y" ]; then
+        print_message "Setting up automatic startup..." "$YELLOW"
+        
+        # systemdサービスの設定
+        sudo tee /etc/systemd/system/camera-app.service > /dev/null << EOL
 [Unit]
 Description=Camera Application
 After=network.target
 
 [Service]
 Type=simple
-User=$CURRENT_USER
-WorkingDirectory=$(pwd)
-ExecStart=/usr/bin/python3 $(pwd)/camera_app.py
-Restart=always
-RestartSec=3
+User=${username}
+WorkingDirectory=/home/${username}/camera_app_RasPi
+ExecStart=/usr/bin/python3 /home/${username}/camera_app_RasPi/camera_app.py
+Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-EOF
+EOL
 
-# Enable and start the service
-sudo systemctl daemon-reload
-sudo systemctl enable camera-app
+        # サービスを有効化して開始
+        sudo systemctl daemon-reload
+        sudo systemctl enable camera-app
+        sudo systemctl start camera-app
+        
+        success_message "Automatic startup has been configured"
+    else
+        warning_message "Automatic startup has been skipped"
+    fi
+}
 
-# Add user to video group for camera access
-echo "Setting up camera permissions..."
-sudo usermod -a -G video $CURRENT_USER
+# メインのインストール処理
+print_message "Starting installation of Camera Application..." "$YELLOW"
 
-echo "Installation complete!"
-echo "The application will start automatically after reboot."
-echo "To start manually, run: python3 camera_app.py"
-echo ""
-echo "Manual controls:"
-echo "- Start: sudo systemctl start camera-app"
-echo "- Stop: sudo systemctl stop camera-app"
-echo "- Status: sudo systemctl status camera-app"
-echo "- Logs: sudo journalctl -u camera-app -f" 
+# システムの更新
+print_message "Updating system packages..." "$YELLOW"
+sudo apt-get update || error_exit "Failed to update system packages"
+sudo apt-get upgrade -y || error_exit "Failed to upgrade system packages"
+
+# 必要なパッケージのインストール
+print_message "Installing required packages..." "$YELLOW"
+sudo apt-get install -y python3-pip python3-opencv || error_exit "Failed to install required packages"
+
+# Python依存関係のインストール
+print_message "Installing Python dependencies..." "$YELLOW"
+pip3 install -r camera_requirements.txt || error_exit "Failed to install Python dependencies"
+
+# ユーザー名の取得
+username=$(whoami)
+print_message "Detected username: ${username}" "$GREEN"
+
+# 自動起動の設定を確認
+read -p "Do you want to set up automatic startup? (y/n): " autostart
+setup_autostart "$username" "$autostart"
+
+# ビデオグループへのユーザー追加
+print_message "Adding user to video group..." "$YELLOW"
+sudo usermod -a -G video ${username} || error_exit "Failed to add user to video group"
+
+success_message "Installation completed successfully!"
+
+# 使用方法の表示
+print_message "\nTo start the application manually:" "$YELLOW"
+echo "python3 camera_app.py"
+
+if [ "$autostart" = "y" ]; then
+    print_message "\nThe application will start automatically after reboot." "$GREEN"
+    print_message "To check the status of the service:" "$YELLOW"
+    echo "sudo systemctl status camera-app"
+    print_message "To view the logs:" "$YELLOW"
+    echo "sudo journalctl -u camera-app -f"
+fi
+
+print_message "\nPlease reboot your system to apply all changes." "$YELLOW" 
