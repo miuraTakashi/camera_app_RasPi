@@ -27,24 +27,74 @@ warning_message() {
     print_message "$1" "$YELLOW"
 }
 
+# 関数: パッケージがインストールされているかチェック
+check_python_package() {
+    python3 -c "import $1" 2>/dev/null
+    return $?
+}
+
+# 関数: システムパッケージがインストールされているかチェック
+check_system_package() {
+    dpkg -l | grep -q "^ii  $1 "
+    return $?
+}
+
 # 関数: Python依存関係のインストール
 install_python_dependencies() {
     print_message "Installing Python dependencies..." "$YELLOW"
     
     # システムパッケージを使用してPython依存関係をインストール
-    print_message "Installing system Python packages..." "$YELLOW"
-    sudo apt-get install -y python3-numpy python3-picamera python3-picamera2 || warning_message "Some system packages may not be available"
+    print_message "Checking system Python packages..." "$YELLOW"
+    
+    # 必要なシステムパッケージのリスト
+    packages_to_install=""
+    
+    if ! check_system_package "python3-numpy"; then
+        packages_to_install="$packages_to_install python3-numpy"
+    else
+        success_message "python3-numpy is already installed"
+    fi
+    
+    if ! check_system_package "python3-picamera"; then
+        packages_to_install="$packages_to_install python3-picamera"
+    else
+        success_message "python3-picamera is already installed"
+    fi
+    
+    if ! check_system_package "python3-picamera2"; then
+        packages_to_install="$packages_to_install python3-picamera2"
+    else
+        success_message "python3-picamera2 is already installed"
+    fi
+    
+    # 必要なパッケージのみインストール
+    if [ -n "$packages_to_install" ]; then
+        print_message "Installing system packages:$packages_to_install" "$YELLOW"
+        sudo apt-get install -y $packages_to_install || warning_message "Some system packages may not be available"
+    else
+        success_message "All system Python packages are already installed"
+    fi
     
     # pipをアップグレード
     python3 -m pip install --upgrade pip || error_exit "Failed to upgrade pip"
     
-    # 基本的な依存関係を個別にインストール
-    print_message "Installing basic dependencies..." "$YELLOW"
-    python3 -m pip install --no-cache-dir opencv-python || error_exit "Failed to install opencv-python"
+    # OpenCVのインストール確認
+    print_message "Checking OpenCV installation..." "$YELLOW"
+    if check_python_package "cv2"; then
+        success_message "OpenCV is already installed"
+    else
+        print_message "Installing OpenCV..." "$YELLOW"
+        python3 -m pip install --no-cache-dir opencv-python || error_exit "Failed to install opencv-python"
+    fi
     
-    # その他の軽量な依存関係をインストール
-    print_message "Installing other dependencies..." "$YELLOW"
-    python3 -m pip install --no-cache-dir Pillow || warning_message "Failed to install Pillow, continuing..."
+    # Pillowのインストール確認
+    print_message "Checking Pillow installation..." "$YELLOW"
+    if check_python_package "PIL"; then
+        success_message "Pillow is already installed"
+    else
+        print_message "Installing Pillow..." "$YELLOW"
+        python3 -m pip install --no-cache-dir Pillow || warning_message "Failed to install Pillow, continuing..."
+    fi
     
     success_message "Python dependencies installed successfully"
 }
