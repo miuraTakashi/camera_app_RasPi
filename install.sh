@@ -27,6 +27,22 @@ warning_message() {
     print_message "$1" "$YELLOW"
 }
 
+# 関数: Python依存関係のインストール
+install_python_dependencies() {
+    print_message "Installing Python dependencies..." "$YELLOW"
+    
+    # pipをアップグレード
+    python3 -m pip install --upgrade pip || error_exit "Failed to upgrade pip"
+    
+    # numpyを先にインストール
+    print_message "Installing numpy..." "$YELLOW"
+    python3 -m pip install numpy || error_exit "Failed to install numpy"
+    
+    # その他の依存関係をインストール
+    print_message "Installing other dependencies..." "$YELLOW"
+    python3 -m pip install -r camera_requirements.txt || error_exit "Failed to install Python dependencies"
+}
+
 # 関数: 自動起動の設定
 setup_autostart() {
     local username=$1
@@ -74,11 +90,10 @@ sudo apt-get upgrade -y || error_exit "Failed to upgrade system packages"
 
 # 必要なパッケージのインストール
 print_message "Installing required packages..." "$YELLOW"
-sudo apt-get install -y python3-pip python3-opencv || error_exit "Failed to install required packages"
+sudo apt-get install -y python3-pip python3-opencv python3-dev python3-setuptools python3-wheel build-essential || error_exit "Failed to install required packages"
 
 # Python依存関係のインストール
-print_message "Installing Python dependencies..." "$YELLOW"
-pip3 install -r camera_requirements.txt || error_exit "Failed to install Python dependencies"
+install_python_dependencies
 
 # ユーザー名の取得
 username=$(whoami)
