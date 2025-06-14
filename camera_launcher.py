@@ -11,9 +11,9 @@ import subprocess
 def check_pi_camera():
     """Check if Pi Camera is available"""
     try:
-        import picamera
-        with picamera.PiCamera() as camera:
-            pass
+        from picamera2 import Picamera2
+        camera = Picamera2()
+        camera.close()  # Close immediately after test
         return True
     except Exception:
         return False

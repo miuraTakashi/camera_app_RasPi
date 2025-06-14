@@ -2,6 +2,7 @@
 """
 Raspberry Pi Camera Module Application
 専用のカメラアプリケーション - Pi Camera Module用
+Updated to use picamera2 (modern library)
 """
 
 import cv2
@@ -9,9 +10,11 @@ import time
 import datetime
 import os
 import json
+import numpy as np
 from pathlib import Path
-import picamera
-from picamera.array import PiRGBArray
+from picamera2 import Picamera2
+from picamera2.encoders import H264Encoder
+from picamera2.outputs import FfmpegOutput
 
 class PiCameraApp:
     def __init__(self, config_file="camera_config.json"):
@@ -19,7 +22,8 @@ class PiCameraApp:
         self.camera = None
         self.is_recording = False
         self.recording_start_time = 0
-        self.video_writer = None
+        self.encoder = None
+        self.output = None
         
         # Load configuration
         self.config = self.load_config(config_file)
@@ -117,15 +121,20 @@ class PiCameraApp:
                     print(f"Using current directory fallback: {fallback_path}")
 
     def initialize_camera(self):
-        """Initialize Pi Camera"""
+        """Initialize Pi Camera using picamera2"""
         try:
             print("Initializing Pi Camera...")
-            self.camera = picamera.PiCamera()
-            self.camera.resolution = (
-                self.config["camera"]["width"], 
-                self.config["camera"]["height"]
+            self.camera = Picamera2()
+            
+            # Configure camera
+            camera_config = self.camera.create_preview_configuration(
+                main={"size": (self.config["camera"]["width"], self.config["camera"]["height"])},
+                controls={"FrameRate": self.config["camera"]["fps"]}
             )
-            self.camera.framerate = self.config["camera"]["fps"]
+            self.camera.configure(camera_config)
+            
+            # Start camera
+            self.camera.start()
             
             # Warm up camera
             time.sleep(2)
@@ -138,9 +147,14 @@ class PiCameraApp:
     def get_frame(self):
         """Capture frame from Pi Camera"""
         try:
-            with PiRGBArray(self.camera) as output:
-                self.camera.capture(output, format="bgr")
-                return output.array.copy()
+            # Capture array directly from camera
+            frame = self.camera.capture_array()
+            
+            # Convert from RGB to BGR for OpenCV
+            if len(frame.shape) == 3 and frame.shape[2] == 3:
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            
+            return frame
         except Exception as e:
             print(f"Error capturing frame: {e}")
             return None
@@ -152,23 +166,28 @@ class PiCameraApp:
             filename = f"PiCam_Image_{timestamp}.jpg"
             filepath = os.path.join(self.config["save_paths"]["images"], filename)
             
-            # Capture directly to file for better quality
-            self.camera.capture(filepath)
+            # Capture image directly to file for better quality
+            self.camera.capture_file(filepath)
             print(f"Image saved: {filepath}")
         except Exception as e:
             print(f"Error saving image: {e}")
 
     def start_video_recording(self):
-        """Start video recording"""
+        """Start video recording using picamera2"""
         if self.is_recording:
             return
         
         try:
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"PiCam_Video_{timestamp}.h264"
+            filename = f"PiCam_Video_{timestamp}.mp4"
             filepath = os.path.join(self.config["save_paths"]["videos"], filename)
             
-            self.camera.start_recording(filepath)
+            # Create encoder and output
+            self.encoder = H264Encoder(bitrate=10000000)  # 10Mbps
+            self.output = FfmpegOutput(filepath)
+            
+            # Start recording
+            self.camera.start_recording(self.encoder, self.output)
             self.is_recording = True
             self.recording_start_time = time.time()
             print(f"Video recording started: {filepath}")
@@ -185,6 +204,10 @@ class PiCameraApp:
             self.is_recording = False
             duration = time.time() - self.recording_start_time
             print(f"Video recording stopped. Duration: {duration:.1f} seconds")
+            
+            # Clean up encoder and output
+            self.encoder = None
+            self.output = None
         except Exception as e:
             print(f"Error stopping video recording: {e}")
 
@@ -267,6 +290,7 @@ class PiCameraApp:
             self.stop_video_recording()
         
         if self.camera:
+            self.camera.stop()
             self.camera.close()
         
         cv2.destroyAllWindows()

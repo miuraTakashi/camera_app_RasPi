@@ -66,7 +66,7 @@ python3 usb_camera_app.py 1   # For USB camera at index 1
 
 The application automatically detects and supports:
 - USB cameras (plug and play)
-- Raspberry Pi Camera Module (via picamera library)
+- Raspberry Pi Camera Module (via picamera2 library)
 
 ## File Locations
 

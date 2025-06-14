@@ -55,11 +55,7 @@ install_python_dependencies() {
         success_message "python3-numpy is already installed"
     fi
     
-    if ! check_system_package "python3-picamera"; then
-        packages_to_install="$packages_to_install python3-picamera"
-    else
-        success_message "python3-picamera is already installed"
-    fi
+    # python3-picamera (legacy) is deprecated, using picamera2 instead
     
     if ! check_system_package "python3-picamera2"; then
         packages_to_install="$packages_to_install python3-picamera2"
@@ -117,7 +113,7 @@ After=network.target
 Type=simple
 User=${username}
 WorkingDirectory=/home/${username}/camera_app_RasPi
-ExecStart=/usr/bin/python3 /home/${username}/camera_app_RasPi/camera_app.py
+        ExecStart=/usr/bin/python3 /home/${username}/camera_app_RasPi/camera_launcher.py
 Restart=on-failure
 RestartSec=5
 
@@ -173,7 +169,7 @@ success_message "Installation completed successfully!"
 
 # 使用方法の表示
 print_message "\nTo start the application manually:" "$YELLOW"
-echo "python3 camera_app.py"
+echo "python3 camera_launcher.py"
 
 if [ "$autostart" = "y" ] || [ "$autostart" = "Y" ]; then
     print_message "\nThe application will start automatically after reboot." "$GREEN"

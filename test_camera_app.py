@@ -9,28 +9,29 @@ import os
 sys.path.append('.')
 
 try:
-    from camera_app import CameraApp
-    print("✓ Successfully imported CameraApp")
+    # Test camera launcher import
+    import camera_launcher
+    print("✓ Successfully imported camera_launcher")
+    
+    # Test Pi camera app import
+    from pi_camera_app import PiCameraApp
+    print("✓ Successfully imported PiCameraApp")
+    
+    # Test USB camera app import
+    from usb_camera_app import USBCameraApp
+    print("✓ Successfully imported USBCameraApp")
     
     # Test configuration loading
-    app = CameraApp()
-    print("✓ Successfully created CameraApp instance")
-    
-    # Test camera detection (will fail gracefully without camera)
-    cameras = app.detect_cameras()
-    print(f"✓ Camera detection completed - found {len(cameras)} camera(s)")
+    pi_app = PiCameraApp()
+    print("✓ Successfully created PiCameraApp instance")
     
     # Test configuration
-    config = app.config
+    config = pi_app.config
     print(f"✓ Configuration loaded - camera resolution: {config['camera']['width']}x{config['camera']['height']}")
     
-    # Test utility functions
-    space_ok, free_gb = app.check_disk_space()
-    print(f"✓ Disk space check: {free_gb:.1f} GB free")
-    
     print("\n🎉 All tests passed! Camera application is ready to use.")
-    print("\nTo run the application with a USB camera:")
-    print("python3 camera_app.py")
+    print("\nTo run the application:")
+    print("python3 camera_launcher.py")
     
 except ImportError as e:
     print(f"❌ Import error: {e}")
