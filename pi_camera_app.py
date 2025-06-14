@@ -38,8 +38,8 @@ class PiCameraApp:
                 "fps": 30
             },
             "save_paths": {
-                "images": f"/home/{os.getenv('USER', 'pi')}/Pictures",
-                "videos": f"/home/{os.getenv('USER', 'pi')}/Videos"
+                "images": str(Path.home() / "Pictures"),
+                "videos": str(Path.home() / "Videos")
             },
             "video": {
                 "codec": "H264",
@@ -67,8 +67,23 @@ class PiCameraApp:
 
     def create_directories(self):
         """Create necessary directories"""
-        for path in self.config["save_paths"].values():
-            Path(path).mkdir(parents=True, exist_ok=True)
+        for name, path in self.config["save_paths"].items():
+            try:
+                Path(path).mkdir(parents=True, exist_ok=True)
+                print(f"Directory created/verified: {path}")
+            except PermissionError:
+                # Fallback to current directory if home directory is not accessible
+                fallback_path = Path.cwd() / name.capitalize()
+                fallback_path.mkdir(parents=True, exist_ok=True)
+                self.config["save_paths"][name] = str(fallback_path)
+                print(f"Permission denied for {path}, using fallback: {fallback_path}")
+            except Exception as e:
+                print(f"Error creating directory {path}: {e}")
+                # Use current directory as last resort
+                fallback_path = Path.cwd() / name.capitalize()
+                fallback_path.mkdir(parents=True, exist_ok=True)
+                self.config["save_paths"][name] = str(fallback_path)
+                print(f"Using fallback directory: {fallback_path}")
 
     def initialize_camera(self):
         """Initialize Pi Camera"""
