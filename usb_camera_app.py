@@ -68,23 +68,52 @@ class USBCameraApp:
         """Create necessary directories"""
         for name, path in self.config["save_paths"].items():
             try:
-                Path(path).mkdir(parents=True, exist_ok=True)
-                print(f"Directory created/verified: {path}")
+                # Ensure we're using the actual home directory
+                home_dir = Path.home()
+                if name == "images":
+                    target_path = home_dir / "Pictures"
+                else:  # videos
+                    target_path = home_dir / "Movies"
+                
+                target_path.mkdir(parents=True, exist_ok=True)
+                # Update config with the verified path
+                self.config["save_paths"][name] = str(target_path)
+                print(f"Directory created/verified: {target_path}")
+                
             except PermissionError:
-                # Fallback to current directory if home directory is not accessible
-                folder_name = "Movies" if name == "videos" else "Pictures"
-                fallback_path = Path.cwd() / folder_name
-                fallback_path.mkdir(parents=True, exist_ok=True)
-                self.config["save_paths"][name] = str(fallback_path)
-                print(f"Permission denied for {path}, using fallback: {fallback_path}")
+                # Fallback to Desktop if home Pictures/Movies not accessible
+                try:
+                    desktop_path = Path.home() / "Desktop"
+                    folder_name = "Movies" if name == "videos" else "Pictures"
+                    fallback_path = desktop_path / folder_name
+                    fallback_path.mkdir(parents=True, exist_ok=True)
+                    self.config["save_paths"][name] = str(fallback_path)
+                    print(f"Permission denied for home {folder_name}, using Desktop: {fallback_path}")
+                except:
+                    # Last resort: current directory
+                    folder_name = "Movies" if name == "videos" else "Pictures"
+                    fallback_path = Path.cwd() / folder_name
+                    fallback_path.mkdir(parents=True, exist_ok=True)
+                    self.config["save_paths"][name] = str(fallback_path)
+                    print(f"Using current directory fallback: {fallback_path}")
+                    
             except Exception as e:
                 print(f"Error creating directory {path}: {e}")
-                # Use current directory as last resort
-                folder_name = "Movies" if name == "videos" else "Pictures"
-                fallback_path = Path.cwd() / folder_name
-                fallback_path.mkdir(parents=True, exist_ok=True)
-                self.config["save_paths"][name] = str(fallback_path)
-                print(f"Using fallback directory: {fallback_path}")
+                # Use Desktop as fallback
+                try:
+                    desktop_path = Path.home() / "Desktop"
+                    folder_name = "Movies" if name == "videos" else "Pictures"
+                    fallback_path = desktop_path / folder_name
+                    fallback_path.mkdir(parents=True, exist_ok=True)
+                    self.config["save_paths"][name] = str(fallback_path)
+                    print(f"Using Desktop fallback: {fallback_path}")
+                except:
+                    # Last resort: current directory
+                    folder_name = "Movies" if name == "videos" else "Pictures"
+                    fallback_path = Path.cwd() / folder_name
+                    fallback_path.mkdir(parents=True, exist_ok=True)
+                    self.config["save_paths"][name] = str(fallback_path)
+                    print(f"Using current directory fallback: {fallback_path}")
 
     def detect_usb_camera(self):
         """Detect available USB cameras"""
