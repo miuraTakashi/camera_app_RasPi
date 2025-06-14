@@ -38,8 +38,8 @@ class PiCameraApp:
                 "fps": 30
             },
             "save_paths": {
-                "images": "/home/pi/Pictures",
-                "videos": "/home/pi/Videos"
+                "images": f"/home/{os.getenv('USER', 'pi')}/Pictures",
+                "videos": f"/home/{os.getenv('USER', 'pi')}/Videos"
             },
             "video": {
                 "codec": "H264",

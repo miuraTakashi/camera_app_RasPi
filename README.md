@@ -72,7 +72,7 @@ The application automatically detects and supports:
 
 Images and videos are saved in your user's home directory:
 - Images: `~/Pictures/`
-- Videos: `~/Movies/`
+- Videos: `~/Videos/`
 
 ## Controls
 
