@@ -90,7 +90,75 @@ The application uses a configuration file (`camera_config.json`) for settings:
 
 ## Troubleshooting
 
-If the camera doesn't work:
+### Raspberry Pi Camera Module Not Detected
+
+If your Raspberry Pi camera module is not being recognized, follow these steps:
+
+#### 1. Quick Diagnosis
+Run the camera debug script to check your system configuration:
+```bash
+python3 camera_debug.py
+```
+
+#### 2. Automatic Fix
+Use the automatic fix script to configure camera settings:
+```bash
+sudo bash fix_camera.sh
+sudo reboot
+```
+
+#### 3. Manual Configuration
+
+**Enable Camera Interface:**
+```bash
+sudo raspi-config
+# Navigate to: Interface Options → Camera → Enable
+```
+
+**Check/Edit Boot Configuration:**
+```bash
+sudo nano /boot/config.txt
+```
+
+Add or ensure these lines are present and uncommented:
+```
+start_x=1
+gpu_mem=128
+camera_auto_detect=1
+```
+
+**Reboot after changes:**
+```bash
+sudo reboot
+```
+
+#### 4. Test Camera Detection
+
+After reboot, test camera detection:
+```bash
+# Check camera status
+vcgencmd get_camera
+
+# List available cameras (newer method)
+libcamera-hello --list-cameras
+
+# Take a test photo
+libcamera-still -o test.jpg
+
+# For older systems
+raspistill -o test.jpg
+```
+
+#### 5. Hardware Check
+
+- Ensure the camera ribbon cable is properly connected
+- Check cable orientation (blue side should face the board)
+- Try a different camera module if available
+- Verify the camera connector is not damaged
+
+### General Camera Issues
+
+If any camera doesn't work:
 1. Check camera connection
 2. Verify camera permissions:
 ```bash
@@ -101,6 +169,20 @@ You should see 'video' in the output. If not:
 sudo usermod -a -G video $USER
 ```
 Then log out and log back in.
+
+### Common Error Messages
+
+**"Camera not detected" error:**
+- Camera interface not enabled in raspi-config
+- Insufficient GPU memory allocation
+- Faulty ribbon cable connection
+
+**"Permission denied" errors:**
+- User not in video group
+- Incorrect device permissions
+
+**"Module not found" errors:**
+- Missing packages: `sudo apt install python3-picamera2 python3-opencv`
 
 ## License
 
